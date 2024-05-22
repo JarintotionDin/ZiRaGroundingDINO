@@ -1,0 +1,1 @@
+python train_multidatasets.py --config-file test_mechmind --model-config-file groundingdino/config/GroundingDINO_SwinT_OGC_dt_zero_shot.py --model-checkpoint-path groundingdino_swint_ogc.pth --num-gpus 2 --seed 41  --output-dir output/mechmind  --shuffle-tasks --eval-only
