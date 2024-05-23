@@ -149,8 +149,6 @@ tmp/
 *__pycache__*/
 
 .asset/
-datasets/
-datasets
 output/
 *.bak
 *.pth
