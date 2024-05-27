@@ -18,8 +18,8 @@ dataloader = OmegaConf.create()
 
 if "NorthAmericaMushrooms_odinw_train" not in DatasetCatalog.list():
     register_coco_instances("NorthAmericaMushrooms_odinw_train", {},
-                            "datasets/odinw/NorthAmericaMushrooms/North American Mushrooms.v2-416x416augmented.coco/train/annotations_without_background.json",
-                            "datasets/odinw/NorthAmericaMushrooms/North American Mushrooms.v2-416x416augmented.coco/train")
+                            "datasets/odinw/NorthAmericaMushrooms/North American Mushrooms.v1-416x416.coco/train/annotations_without_background.json",
+                            "datasets/odinw/NorthAmericaMushrooms/North American Mushrooms.v1-416x416.coco/train")
 DatasetCatalog.get("NorthAmericaMushrooms_odinw_train")
 train_thing_classes = MetadataCatalog.get("NorthAmericaMushrooms_odinw_train").thing_classes
 
