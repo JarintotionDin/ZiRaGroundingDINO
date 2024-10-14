@@ -14,7 +14,6 @@ in the config file and implement a new train_net.py to handle them.
 """
 import logging
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 import sys
 import time
 import torch
@@ -154,7 +153,7 @@ class Trainer(SimpleTrainer):
         """
         assert self.model.training, "[Trainer] model was changed to eval mode!"
         assert torch.cuda.is_available(), "[Trainer] CUDA is required for AMP training!"
-        from torch.cuda.amp import autocast
+        from torch.amp import autocast
 
         start = time.perf_counter()
         """
@@ -166,7 +165,7 @@ class Trainer(SimpleTrainer):
         """
         If you want to do something with the losses, you can wrap the model.
         """
-        with autocast(enabled=self.amp):
+        with autocast("cuda", enabled=self.amp):
             loss_dict = self.model(data)
             if isinstance(loss_dict, torch.Tensor):
                 losses = loss_dict
@@ -511,29 +510,57 @@ def main(args):
     args.eval_only = True
     if args.zero_shot:
         args.model_checkpoint_path = pre_trained_model_path
+        
     if os.path.exists(coco_config_file):
         ow_config_files = ow_config_files + [coco_config_file]
+        # raise ValueError("coco config file exists")
+    json_paths = {}
+        
     for ow_config_file in ow_config_files:
         torch.cuda.empty_cache()
         args.config_file = ow_config_file
         cfg = LazyConfig.load(args.config_file)
         cfg = LazyConfig.apply_overrides(cfg, args.opts)
         default_setup(cfg, args, logger)
-        if args.eval_only:
-            config_file = args.model_config_file  # change the path of the model config file
-            checkpoint_path = args.model_checkpoint_path  # change the path of the model
-            model = load_model(config_file, checkpoint_path)
-            model.unfreeze_module(model)
-            model.to(cfg.train.device)
-            model = create_ddp_model(model)
-            # using ema for evaluation
-            ema.may_build_model_ema(cfg, model)
-            if cfg.train.model_ema.enabled and cfg.train.model_ema.use_ema_weights_for_eval_only:
-                ema.apply_model_ema(model)
-            json_path = os.path.join(cfg.train.output_dir, "result.json")
-            res = do_test(cfg, model, eval_only=True)
-            with open(json_path, "w") as jf:
-                json.dump(res, jf)
+
+        config_file = args.model_config_file  # change the path of the model config file
+        checkpoint_path = args.model_checkpoint_path  # change the path of the model
+        model = load_model(config_file, checkpoint_path)
+        model.unfreeze_module(model)
+        model.to(cfg.train.device)
+        model = create_ddp_model(model)
+        # using ema for evaluation
+        ema.may_build_model_ema(cfg, model)
+        if cfg.train.model_ema.enabled and cfg.train.model_ema.use_ema_weights_for_eval_only:
+            ema.apply_model_ema(model)
+        json_path = os.path.join(cfg.train.output_dir, "result.json")
+        json_paths[ow_config_file] = json_path
+        # res = do_test(cfg, model, eval_only=True)
+        # if ow_config_file == coco_config_file:
+        #     print(res)
+        # with open(json_path, "w") as jf:
+        #     json.dump(res, jf)
+    
+    avg_res = {}
+    for k, v in json_paths.items():
+        with open(v, "r") as jf:
+            res = json.load(jf)
+            if 'bbox' in res:
+                avg_res[k] = res['bbox']['AP']
+
+    # avg_res is a dict, key is the config file, value is the AP, logger the result
+    result_str = "AP results: {}".format(avg_res)
+    logger.info(result_str)
+    sum = 0
+    coco_count = 0
+    for k, v in avg_res.items():
+        if k != coco_config_file:
+            sum += v
+        else:
+            coco_count += 1
+    logger.info("average AP: {}".format(sum / (len(avg_res) - coco_count)))
+    if coco_config_file in avg_res:
+        logger.info("AP on COCO: {}".format(avg_res[coco_config_file]))
 
 if __name__ == "__main__":
     parser = default_argument_parser()

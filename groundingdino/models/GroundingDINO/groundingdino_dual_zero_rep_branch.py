@@ -165,7 +165,7 @@ class GroundingDINO(nn.Module):
         pixel_std: List[float] = [123.675, 116.280, 103.530],
         device="cuda",
         select_box_nums_for_evaluation=200,
-        # pat
+
         freeze_all=False,
         loss_adapter_weight=0.1,
         use_cet=False,
@@ -240,16 +240,16 @@ class GroundingDINO(nn.Module):
         self.use_learned_names = use_learned_names
         self.use_prompt_memory_output = use_prompt_memory_output
         if self.use_cet:
-            # self.rep_linear_adapter = RepZeroLinear(in_features=self.bert.config.hidden_size,
-            #                                 out_features=self.hidden_dim)
+            self.rep_linear_adapter = RepZeroLinear(in_features=self.bert.config.hidden_size,
+                                            out_features=self.hidden_dim)
             # self.rep_linear_adapter = Adapter(embed_dim=self.bert.config.hidden_size,
             #                             down_dim=cet_middle_dim,
             #                             output_dim=self.hidden_dim,
             #                             ffn_drop=0.0,
             #                             gate_base_scale=1.0,
             #                             use_self_kd=False)
-            self.rep_linear_adapter = RepZeroLoRA(in_features=self.bert.config.hidden_size,
-                                                  out_features=self.hidden_dim)
+            # self.rep_linear_adapter = RepZeroLoRA(in_features=self.bert.config.hidden_size,
+            #                                       out_features=self.hidden_dim)
 
         # special tokens
         self.specical_tokens = self.tokenizer.convert_tokens_to_ids(["[CLS]", "[SEP]", ".", "?"])
@@ -407,6 +407,7 @@ class GroundingDINO(nn.Module):
         # prepare captions
         captions = [x["captions"] for x in batched_inputs]
         names_list = [x["captions"][:-1].split(".") for x in batched_inputs]
+        # print(len(names_list[0]))
 
         if (self.use_add_names and (not self.training)) or (self.use_learned_names and self.training):
             non_overlap_classes = [class_name for class_name in \
@@ -474,6 +475,7 @@ class GroundingDINO(nn.Module):
             "position_ids": position_ids,  # bs, 195
             "text_self_attention_masks": text_self_attention_masks,  # bs, 195,195
         }
+        # print(encoded_text.shape)
 
         # import ipdb; ipdb.set_trace()
         features, poss = self.backbone(samples)
@@ -553,6 +555,8 @@ class GroundingDINO(nn.Module):
         out = {"pred_logits": outputs_class[-1],
                "pred_boxes": outputs_coord_list[-1],
                "cate_to_token_mask_list": cate_to_token_mask_list}
+        
+        # print(out["pred_logits"].shape)
 
 
         if self.training:
@@ -594,6 +598,7 @@ class GroundingDINO(nn.Module):
                 width = input_per_image.get("width", image_size[1])
                 r = detector_postprocess(results_per_image, height, width)
                 processed_results.append({"instances": r})
+            # print(r.pred_classes)
             return processed_results
         
     @torch.jit.unused
@@ -692,11 +697,28 @@ class GroundingDINO(nn.Module):
                 param.requires_grad = False
                 print("freeze:", module_name)
         
-    
     def load_state_dict(self, state_dict, strict=True):
+        for k, v in state_dict.items():
+            if "prompt_memory_pool" in k:
+                class_name = k.split(".")[-1]
+                if class_name == "prompt_memory_pool":
+                    continue
+                self.prompt_memory_pool[class_name] = nn.Parameter(v)
+                class_name = class_name[1:-1]
+                self.learned_classes.append(class_name)
+                # print("learned class:", class_name)
         res = super().load_state_dict(state_dict=state_dict, strict=strict)
         return res
-    
+
+    def add_cls_prompt(self, class_names, device="cpu", fixed_name=False):
+        for class_name in class_names:
+            self.learned_classes.append(class_name)
+            if not fixed_name:
+                class_name = "-{}-".format(class_name)
+            if class_name not in self.prompt_memory_pool:
+                self.prompt_memory_pool[class_name] = nn.Parameter(torch.randn(self.hidden_dim).to(device))
+                # print("add class prompt:", class_name)
+            
     def before_train(self):
         if self.freeze_all:
             for param in self.parameters():
@@ -710,7 +732,8 @@ class GroundingDINO(nn.Module):
         if self.use_project_tuning:
             self.unfreeze_module_(["input_proj"])
         self.unfreeze_module_(["adapter"])
-    
+
+        # print("leared classes:", self.learned_classes)
         # self.freeze_model_()
     
     def after_train(self):
@@ -718,166 +741,9 @@ class GroundingDINO(nn.Module):
         for module in self.modules():
             if hasattr(module, '__rep__'):
                 module.__rep__()
+        # for learned classes
         return
 
-    # @torch.no_grad()
-    # def inference(self, samples: NestedTensor, targets: List = None, **kw):
-    #     """The forward expects a NestedTensor, which consists of:
-    #        - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
-    #        - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
-
-    #     It returns a dict with the following elements:
-    #        - "pred_logits": the classification logits (including no-object) for all queries.
-    #                         Shape= [batch_size x num_queries x num_classes]
-    #        - "pred_boxes": The normalized boxes coordinates for all queries, represented as
-    #                        (center_x, center_y, width, height). These values are normalized in [0, 1],
-    #                        relative to the size of each individual image (disregarding possible padding).
-    #                        See PostProcess for information on how to retrieve the unnormalized bounding box.
-    #        - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
-    #                         dictionnaries containing the two above keys for each decoder layer.
-    #     """
-    #     if targets is None:
-    #         captions = kw["captions"]
-    #     else:
-    #         captions = [t["caption"] for t in targets]
-    #     # names_list = [caption[:-1].split(".") for caption in captions]
-    #     names_list = captions[0][:-1].split(".")
-    #     names_list = [names_list]
-
-    #     if isinstance(samples, (list, torch.Tensor)):
-    #         samples = nested_tensor_from_tensor_list(samples)
-
-    #     # captions = [x["captions"] for x in batched_inputs]
-    #     # names_list = [x["captions"][:-1].split(".") for x in batched_inputs]
-
-    #     if (self.use_add_names and (not self.training)) or (self.use_learned_names and self.training):
-    #         non_overlap_classes = [class_name for class_name in \
-    #             self.learned_classes if (class_name not in names_list[0])]
-    #         if self.training and (len(non_overlap_classes) >= self.num_select_prompt):
-    #                 non_overlap_classes = random.sample(non_overlap_classes, self.num_select_prompt)    
-    #         for idx, (caption, names) in enumerate(zip(captions, names_list)):
-    #             names_list[idx] = names + non_overlap_classes
-    #             captions[idx] = caption + ".".join(non_overlap_classes)
-    #             if not captions[idx].endswith("."): captions[idx] = captions[idx] + "."
-
-    #     tokenized = self.tokenizer(captions, padding="longest",
-    #                                return_tensors="pt").to(samples.device)
-    #     (
-    #         text_self_attention_masks,
-    #         position_ids,
-    #         cate_to_token_mask_list,
-    #     ) = generate_masks_with_special_tokens_and_transfer_map(
-    #         tokenized, self.specical_tokens, self.tokenizer
-    #     )
-
-    #     # prepare targets
-    #     targets = None
-    #     # if self.training:
-    #     #     gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
-    #     #     targets = self.prepare_targets(gt_instances, cate_to_token_mask_list, names_list)
-
-    #     # encoder texts
-    #     if text_self_attention_masks.shape[1] > self.max_text_len:
-    #         text_self_attention_masks = text_self_attention_masks[
-    #             :, : self.max_text_len, : self.max_text_len
-    #         ]
-    #         position_ids = position_ids[:, : self.max_text_len]
-    #         tokenized["input_ids"] = tokenized["input_ids"][:, : self.max_text_len]
-    #         tokenized["attention_mask"] = tokenized["attention_mask"][:, : self.max_text_len]
-    #         tokenized["token_type_ids"] = tokenized["token_type_ids"][:, : self.max_text_len]
-
-    #     # extract text embeddings
-    #     if self.sub_sentence_present:
-    #         tokenized_for_encoder = {k: v for k, v in tokenized.items() if k != "attention_mask"}
-    #         tokenized_for_encoder["attention_mask"] = text_self_attention_masks
-    #         tokenized_for_encoder["position_ids"] = position_ids
-    #     else:
-    #         # import ipdb; ipdb.set_trace()
-    #         tokenized_for_encoder = tokenized
-
-    #     bert_output = self.bert(**tokenized_for_encoder)  # bs, 195, 768
-        
-    #     encoded_text = self.feat_map(bert_output["last_hidden_state"])  # bs, 195, d_model
-        
-    #     if self.use_cet and (not self.use_prompt_memory_output):
-    #         adapter_output, adapter_loss_text = self.rep_linear_adapter(bert_output["last_hidden_state"])    
-    #         encoded_text = encoded_text + adapter_output
-        
-    #     if self.use_prompt_tuning or self.use_prompt_memory_output:
-    #         encoded_text_target = encoded_text.clone()
-    #         for bid, cate_to_token_mask in enumerate(cate_to_token_mask_list):
-    #             for cate_cid in range(len(cate_to_token_mask)):
-    #                 class_name = names_list[bid][cate_cid]
-    #                 class_name = "-{}-".format(class_name)
-    #                 if class_name in self.prompt_memory_pool.keys():
-    #                     prompt_memory = self.prompt_memory_pool[class_name]
-    #                     encoded_text_target[bid, :cate_to_token_mask.shape[1], 
-    #                                         :][cate_to_token_mask[cate_cid]] = prompt_memory
-    #         encoded_text = encoded_text_target
-        
-    #     text_token_mask = tokenized.attention_mask.bool()  # bs, 195
-    #     if encoded_text.shape[1] > self.max_text_len:
-    #         encoded_text = encoded_text[:, : self.max_text_len, :]
-    #         text_token_mask = text_token_mask[:, : self.max_text_len]
-    #         position_ids = position_ids[:, : self.max_text_len]
-    #         text_self_attention_masks = text_self_attention_masks[
-    #             :, : self.max_text_len, : self.max_text_len]
-
-    #     text_dict = {
-    #         "encoded_text": encoded_text,  # bs, 195, d_model
-    #         "text_token_mask": text_token_mask,  # bs, 195
-    #         "position_ids": position_ids,  # bs, 195
-    #         "text_self_attention_masks": text_self_attention_masks,  # bs, 195,195
-    #     }
-
-    #     # import ipdb; ipdb.set_trace()
-    #     features, poss = self.backbone(samples)
-
-    #     srcs = []
-    #     masks = []
-    #     for l, feat in enumerate(features):
-    #         src, mask = feat.decompose()
-    #         srcs.append(self.input_proj[l](src))
-    #         masks.append(mask)
-    #         assert mask is not None
-    #     if self.num_feature_levels > len(srcs):
-    #         _len_srcs = len(srcs)
-    #         for l in range(_len_srcs, self.num_feature_levels):
-    #             if l == _len_srcs:
-    #                 src = self.input_proj[l](features[-1].tensors)
-    #             else:
-    #                 src = self.input_proj[l](srcs[-1])
-    #             m = samples.mask
-    #             mask = F.interpolate(m[None].float(), size=src.shape[-2:]).to(torch.bool)[0]
-    #             pos_l = self.backbone[1](NestedTensor(src, mask)).to(src.dtype)
-    #             srcs.append(src)
-    #             masks.append(mask)
-    #             poss.append(pos_l)
-
-    #     input_query_bbox = input_query_label = attn_mask = dn_meta = None
-    #     hs, reference, hs_enc, ref_enc, init_box_proposal, adapter_loss = self.transformer(
-    #         srcs, masks, input_query_bbox, poss, input_query_label, attn_mask, text_dict)
-
-    #     # deformable-detr-like anchor update
-    #     outputs_coord_list = []
-    #     for dec_lid, (layer_ref_sig, layer_bbox_embed, layer_hs) in enumerate(
-    #         zip(reference[:-1], self.bbox_embed, hs)
-    #     ):
-    #         layer_delta_unsig = layer_bbox_embed(layer_hs)
-    #         layer_outputs_unsig = layer_delta_unsig + inverse_sigmoid(layer_ref_sig)
-    #         layer_outputs_unsig = layer_outputs_unsig.sigmoid()
-    #         outputs_coord_list.append(layer_outputs_unsig)
-    #     outputs_coord_list = torch.stack(outputs_coord_list)
-
-    #     # output
-    #     outputs_class = torch.stack(
-    #         [
-    #             layer_cls_embed(layer_hs, text_dict)
-    #             for layer_cls_embed, layer_hs in zip(self.class_embed, hs)
-    #         ]
-    #     )
-    #     out = {"pred_logits": outputs_class[-1], "pred_boxes": outputs_coord_list[-1], "cate_to_token_mask_list": cate_to_token_mask_list}
-    #     return out
 
 @MODULE_BUILD_FUNCS.registe_with_name(module_name="dualzerorepbranchgroundingdino")
 def build_dual_zero_rep_branch_groundingdino(args):
@@ -899,6 +765,11 @@ def build_dual_zero_rep_branch_groundingdino(args):
         use_learned_names = args.use_learned_names
     else:
         use_learned_names = False
+    
+    if hasattr(args, "use_add_names"):
+        use_add_names = args.use_add_names
+    else:
+        use_add_names = False
 
     if hasattr(args, "use_project_adapter"):
         use_project_adapter = args.use_project_adapter
@@ -948,6 +819,7 @@ def build_dual_zero_rep_branch_groundingdino(args):
         cet_type=args.cet_type,
         use_project_tuning=use_project_tuning,
         use_learned_names=use_learned_names,
+        use_add_names=use_add_names,
         use_project_adapter=use_project_adapter,
         use_zero_inter_loss_for_conv=use_zero_inter_loss_for_conv,
     )

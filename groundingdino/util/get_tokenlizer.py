@@ -24,3 +24,10 @@ def get_pretrained_language_model(text_encoder_type):
     if text_encoder_type == "roberta-base":
         return RobertaModel.from_pretrained(text_encoder_type)
     raise ValueError("Unknown text_encoder_type {}".format(text_encoder_type))
+
+# def get_pretrained_language_model(text_encoder_type):
+#     if "bert-base-uncased" in text_encoder_type:
+#         return BertModel.from_pretrained(text_encoder_type)
+#     if text_encoder_type == "roberta-base":
+#         return RobertaModel.from_pretrained(text_encoder_type)
+#     raise ValueError("Unknown text_encoder_type {}".format(text_encoder_type))

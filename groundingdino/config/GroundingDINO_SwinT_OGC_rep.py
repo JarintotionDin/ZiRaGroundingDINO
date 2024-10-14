@@ -59,8 +59,8 @@ encoder_gate_base_scale = 0.1
 decoder_gate_base_scale = 0.1
 
 # task agnostic
-use_add_names = True
-use_learned_names = True
+use_add_names = False
+use_learned_names = False
 
 # cet
 use_cet = True
@@ -70,7 +70,7 @@ use_prompt_memory_output = True
 cet_type = "Adapter"
 # cet_type = "Linear"
 # cet_type = "Transformer"
-use_zero_inter_loss = False
+use_zero_inter_loss = True
 
 # moe
 num_experts = 1
@@ -86,7 +86,7 @@ use_cls_linear = False
 use_prompt_tuning = False
 
 # project adapter
-use_project_adapter = False
+use_project_adapter = True
 use_zero_inter_loss_for_conv = True
 
 # loss weight
