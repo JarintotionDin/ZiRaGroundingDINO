@@ -535,11 +535,9 @@ def main(args):
             ema.apply_model_ema(model)
         json_path = os.path.join(cfg.train.output_dir, "result.json")
         json_paths[ow_config_file] = json_path
-        # res = do_test(cfg, model, eval_only=True)
-        # if ow_config_file == coco_config_file:
-        #     print(res)
-        # with open(json_path, "w") as jf:
-        #     json.dump(res, jf)
+        res = do_test(cfg, model, eval_only=True)
+        with open(json_path, "w") as jf:
+            json.dump(res, jf)
     
     avg_res = {}
     for k, v in json_paths.items():
