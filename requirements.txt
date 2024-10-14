@@ -1,5 +1,6 @@
 torch
 torchvision
+detectron2==0.6
 transformers
 addict
 yapf

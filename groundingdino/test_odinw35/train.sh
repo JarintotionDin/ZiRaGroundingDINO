@@ -1,3 +1,0 @@
-python train_net.py --config-file test_odinw/for_train/test_pothole.py --model-config-file groundingdino/config/GroundingDINO_SwinT_OGC_dt.py --model-checkpoint-path groundingdino_swint_ogc.pth --num-gpus 1
-
-python train_net.py --config-file test_odinw/test_zero_shot_coco.py --model-config-file groundingdino/config/GroundingDINO_SwinT_OGC_dt.py --model-checkpoint-path output/odinw/pothole_text_moe_adapter/model_final.pth --num-gpus 1 --eval-only
