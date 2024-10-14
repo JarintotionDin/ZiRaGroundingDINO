@@ -1,13 +1,19 @@
 # Grounding DINO Zira
-
 ---
-Official pytorch implementation of [ZiRa](aa), a method for incremental vision language object detection (IVLOD)
+Official pytorch implementation of [ZiRa](https://arxiv.org/abs/2403.01680), a method for incremental vision language object detection (IVLOD)
 
 ## Install 
 If you have a CUDA environment, please make sure the environment variable `CUDA_HOME` is set.
 
 ```bash
 pip install -e .
+```
+
+## Training
+Download the coco dataset in the "dataset" folder, and download the all Odinw13 sub-datasets in a folder named "dataset", then run the scripts.
+
+```bash
+sh train_odinw13_zira.sh
 ```
 
 ## Citation
