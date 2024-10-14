@@ -1,1 +1,0 @@
-python visualize_json_results.py --input output/mechmind/mechmind_10_15_language_adapter/coco_instances_results.json --output output/mechmind/mechmind_10_15_language_adapter/visualization --dataset mechmind_hard --conf-threshold 0.3
