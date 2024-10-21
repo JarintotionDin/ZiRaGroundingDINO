@@ -3,7 +3,7 @@
 Official pytorch implementation of [ZiRa](https://arxiv.org/abs/2403.01680), a method for incremental vision language object detection (IVLOD)
 
 ## Install 
-If you have a CUDA environment, please make sure the environment variable `CUDA_HOME` is set.
+If you have a CUDA environment, please make sure the environment variable `CUDA_HOME` is set. We recommend using Python 3.9. 
 
 ```bash
 pip install -e .
