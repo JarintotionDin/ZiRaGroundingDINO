@@ -16,12 +16,6 @@ from detectron2.utils.logger import setup_logger
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data.datasets import register_coco_instances
 
-register_coco_instances("mechmind_hard", {},
-                        "datasets/mechmind_hard/mechmind_hard.json",
-                        "datasets/mechmind_hard")
-MetadataCatalog.get("mechmind_hard")
-DatasetCatalog.get("mechmind_hard")
-
 def create_instances(predictions, image_size):
     ret = Instances(image_size)
 
