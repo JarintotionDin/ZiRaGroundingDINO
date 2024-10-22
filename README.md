@@ -3,14 +3,21 @@
 Official pytorch implementation of [ZiRa](https://arxiv.org/abs/2403.01680), a method for incremental vision language object detection (IVLOD)
 
 ## Install 
-If you have a CUDA environment, please make sure the environment variable `CUDA_HOME` is set. We recommend using Python 3.9. 
+If you have a CUDA environment, please make sure the environment variable `CUDA_HOME` is set.
 
 ```bash
 pip install -e .
 ```
 
+## Dataset
+Download the coco dataset in the "dataset" folder, and download the all Odinw13 sub-datasets in a folder named "dataset". The Odinw13 sub-datasets can be downloaded by runing this script.
+
+```bash
+python download.py
+```
+
 ## Training
-Download the coco dataset and all Odinw13 sub-datasets in a folder named "dataset". Then download the GroundingDINO pre-trained model from this [repo](https://github.com/IDEA-Research/GroundingDINO). Finally run the scripts.
+Run the scripts.
 
 ```bash
 sh train_odinw13_zira.sh
@@ -40,15 +47,6 @@ If you find our work helpful for your research, please consider citing the follo
   timestamp    = {Tue, 02 Apr 2024 16:35:34 +0200},
   biburl       = {https://dblp.org/rec/journals/corr/abs-2403-01680.bib},
   bibsource    = {dblp computer science bibliography, https://dblp.org}
-}
-```
-
-```bibtex
-@article{liu2023grounding,
-  title={Grounding dino: Marrying dino with grounded pre-training for open-set object detection},
-  author={Liu, Shilong and Zeng, Zhaoyang and Ren, Tianhe and Li, Feng and Zhang, Hao and Yang, Jie and Li, Chunyuan and Yang, Jianwei and Su, Hang and Zhu, Jun and others},
-  journal={arXiv preprint arXiv:2303.05499},
-  year={2023}
 }
 ```
 
